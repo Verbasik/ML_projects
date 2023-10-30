@@ -9,10 +9,10 @@
 - Python
 
 Библиотеки и инструменты:
-- Data Manipulation: Pandas, NumPy, PySpark
-- Data Analytics: SciPy, statsmodels
-- Data Visualization: Matplotlib, Seaborn, Plotly
-- Machine Learning: Keras, TensorFlow
+- Data Manipulation: Pandas, NumPy, PySpark;
+- Data Analytics: SciPy, statsmodels;
+- Data Visualization: Matplotlib, Seaborn, Plotly;
+- Machine Learning: Keras, TensorFlow.
 
 #### 👨‍💻 Кто я?
 Магистр по наукам о данных с глубокой экспертизой в области Data Science. Руковожу разработкой и внедрением data-продуктов в Департаменте ИТ на платформе BigData.
