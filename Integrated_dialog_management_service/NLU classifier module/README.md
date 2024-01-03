@@ -1,4 +1,4 @@
-# NLU Classifier README 📚
+# NLU Classifier 📚
 
 ## Описание 🌟
 
