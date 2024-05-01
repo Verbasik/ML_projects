@@ -1,0 +1,26 @@
+# Основные библиотеки для машинного обучения
+scikit-learn
+torch==2.1.0+cu118 # Указываем версию, предпочитая ее при дублировании
+scipy
+typing-extensions
+
+# Инструменты для ускорения и оптимизации работы
+accelerate
+peft
+
+# Работа с моделями и логирование
+mlflow==2.1.1
+transformers
+sentence_transformers
+
+# Работа с текстами и данными
+python-docx
+chromadb
+
+# Инструменты для работы с облачными сервисами
+boto3
+
+# Специфические зависимости
+cloudpickle
+langchain
+packaging<23
