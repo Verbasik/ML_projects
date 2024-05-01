@@ -1,0 +1,27 @@
+# Основные библиотеки для машинного обучения
+scikit-learn
+scipy
+torch==2.1.0+cu118
+typing-extensions
+
+# Инструменты для ускорения и оптимизации работы
+accelerate
+peft
+
+# Работа с моделями и логирование
+mlflow==2.1.1
+transformers
+sentence_transformers
+sentencepiece
+
+# Работа с текстами и данными
+python-docx
+chromadb
+
+# Инструменты для работы с AWS
+boto3
+s3fs
+
+# Специфические зависимости
+langchain
+packaging<23
