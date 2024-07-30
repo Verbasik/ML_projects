@@ -1,4 +1,4 @@
-[](https://github.com/Verbasik/ML_projects/blob/main/MouseGPT/png/MouseGPT.png)
+![MouseGPT](https://github.com/Verbasik/ML_projects/blob/main/MouseGPT/png/MouseGPT.png)
 
 # Автоматическая суммаризация научных статей с использованием LLM 🧠📚
 
