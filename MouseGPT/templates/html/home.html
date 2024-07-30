@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Application</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Nunito', sans-serif;
+        }
+
+        html, body {
+            background: linear-gradient(120deg, rgba(23, 190, 187, 1), rgba(240, 166, 202, 1));
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .container h1 {
+            margin: 0.5em auto;
+            color: #FFF;
+            text-align: center;
+        }
+
+        .chatbox {
+            background: rgba(255, 255, 255, 0.05);
+            width: 600px;
+            height: 75%;
+            border-radius: 0.2em;
+            position: relative;
+            box-shadow: 1px 1px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .chatbox__messages {
+            overflow-y: auto;
+            padding: 10px;
+            height: calc(100% - 50px);
+        }
+
+        .chatbox__messages__user-message {
+            width: 450px;
+        }
+
+        .chatbox__messages__user-message--ind-message {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 1em;
+            height: auto;
+            width: 65%;
+            border-radius: 5px;
+            margin: 2em 1em;
+            overflow: auto;
+            position: relative;
+        }
+
+        .chatbox__messages__user-message--ind-message p.name {
+            color: #FFF;
+            font-size: 1em;
+        }
+
+        .chatbox__messages__user-message--ind-message p.message {
+            color: #FFF;
+            font-size: 0.7em;
+            margin: 0 2.8em;
+        }
+
+        .chatbox__messages:nth-of-type(odd) .chatbox__messages__user-message--ind-message {
+            float: right;
+        }
+
+        .chatbox__messages:nth-of-type(even) .chatbox__messages__user-message--ind-message {
+            float: left;
+        }
+
+        .chatbox__user-list {
+            background: rgba(255, 255, 255, 0.1);
+            width: 25%;
+            height: 100%;
+            float: right;
+            border-top-right-radius: 0.2em;
+            border-bottom-right-radius: 0.2em;
+        }
+
+        .chatbox__user-list h1 {
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9em;
+            padding: 1em;
+            margin: 0;
+            font-weight: 300;
+            text-align: center;
+        }
+
+        .chatbox__user {
+            width: 0.5em;
+            height: 0.5em;
+            border-radius: 100%;
+            margin: 1em 0.7em;
+        }
+
+        .chatbox__user--active {
+            background: rgba(23, 190, 187, 0.8);
+        }
+
+        .chatbox__user--busy {
+            background: rgba(252, 100, 113, 0.8);
+        }
+
+        .chatbox__user--away {
+            background: rgba(255, 253, 130, 0.8);
+        }
+
+        .chatbox p {
+            float: left;
+            text-align: left;
+            margin: -0.25em 2em;
+            font-size: 0.7em;
+            font-weight: 300;
+            color: #FFF;
+            width: 200px;
+        }
+
+        .chatbox form {
+            background: #222;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+        }
+
+        .chatbox form input {
+            background: rgba(255, 255, 255, 0.03);
+            border: none;
+            padding: 1.2em;
+            outline: none;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 300;
+            flex: 1;
+        }
+
+        .chatbox form button {
+            padding: 1.2em;
+            border: none;
+            background: #333;
+            color: white;
+            cursor: pointer;
+        }
+
+        ::-webkit-input-placeholder {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        :-moz-placeholder {
+            color: rgba(255, 255, 255, 0.9);  
+        }
+
+        ::-moz-placeholder {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        :-ms-input-placeholder {  
+            color: rgba(255, 255, 255, 0.9);
+        }
+        .custom-btn {
+            width: 130px;
+            height: 40px;
+            color: #fff;
+            border-radius: 5px;
+            padding: 10px 25px;
+            font-family: 'Lato', sans-serif;
+            font-weight: 500;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            display: inline-block;
+            box-shadow:inset 2px 2px 2px 0px rgba(255,255,255,.5),
+            7px 7px 20px 0px rgba(0,0,0,.1),
+            4px 4px 5px 0px rgba(0,0,0,.1);
+            outline: none;
+        }
+        .btn-8 {
+            background-color: #f0ecfc;
+            background-image: linear-gradient(315deg, #f0ecfc 0%, #c797eb 74%);
+            line-height: 42px;
+            padding: 0;
+            border: none;
+        }
+        .btn-8 span {
+            position: relative;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .btn-8:before,
+        .btn-8:after {
+            position: absolute;
+            content: "";
+            right: 0;
+            bottom: 0;
+            background: #c797eb;
+            transition: all 0.3s ease;
+        }
+        .btn-8:before {
+            height: 0%;
+            width: 2px;
+        }
+        .btn-8:after {
+            width: 0%;
+            height: 2px;
+        }
+        .btn-8:hover:before {
+            height: 100%;
+        }
+        .btn-8:hover:after {
+            width: 100%;
+        }
+        .btn-8:hover {
+            background: transparent;
+        }
+        .btn-8 span:hover {
+            color: #c797eb;
+        }
+        .btn-8 span:before,
+        .btn-8 span:after {
+            position: absolute;
+            content: "";
+            left: 0;
+            top: 0;
+            background: #c797eb;
+            transition: all 0.3s ease;
+        }
+        .btn-8 span:before {
+            width: 2px;
+            height: 0%;
+        }
+        .btn-8 span:after {
+            height: 2px;
+            width: 0%;
+        }
+        .btn-8 span:hover:before {
+            height: 100%;
+        }
+        .btn-8 span:hover:after {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐭 MouseGPT</h1>
+        <div class='chatbox'>
+            <div class='chatbox__Tool-list'>
+            </div>
+            <div class="chatbox__messages" id="chat-box">
+                <!-- Сообщения чата будут добавляться сюда -->
+            </div>
+            <form>
+                <input type="text" id="user-input" placeholder="Enter your message">
+                <button type="button" id="send-button">Send</button>
+            </form>
+        </div>
+        <form id="pdf-form" enctype="multipart/form-data">
+            <input type="file" id="pdf-input" accept="application/pdf" style="display: none;">
+            <button type="button" class="custom-btn btn-8" id="upload-button"><span>Upload PDF</span></button>
+        </form>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='JavaScript/home.js') }}"></script>
+</body>
+</html>
