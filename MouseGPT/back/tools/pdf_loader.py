@@ -1,7 +1,12 @@
+# ============================
+# БЛОК ИМПОРТОВ
+# ============================
 # Импорт аннотаций типов
 from typing import List
 
 # Импорт библиотек LangChain
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 
 def pdf_loader(file_path: str) -> List[str]:
@@ -26,4 +31,10 @@ def pdf_loader(file_path: str) -> List[str]:
     loader = PyPDFLoader(file_path)
     docs = loader.load()
     
-    return docs
+    embeddings = OpenAIEmbeddings()
+    faiss_index = FAISS.from_documents(docs, embeddings)
+    
+    # Сохраняем FAISS индекс локально
+    faiss_index.save_local("temp/PDF.faiss")
+    
+    return docs, faiss_index

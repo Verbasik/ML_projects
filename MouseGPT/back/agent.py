@@ -1,33 +1,38 @@
+# ============================
+# БЛОК ИМПОРТОВ
+# ============================
 # Импорт аннотаций типов
 from typing import Any, Dict, List
 
-class AgentState():
-    """
-    Класс для представления состояния агента.
-    """
-    def __init__(self):
-        self.messages: List[Dict[str, Any]] = []
+# Импорт для поиска по векторным представлениям
+import faiss
 
-class BaseAgent(AgentState):
+# Импорт библиотек LangChain
+from langchain_openai import ChatOpenAI
+from langchain.chains.question_answering import load_qa_chain
+from langchain_community.vectorstores import FAISS
+
+class BaseAgent():
     """
     Базовый класс для создания агентов.
     """
 
     def __init__(self, llm, system_prompt, tools: List[Any] = None):
         """
-        Инициализация агента.
+        Description:
+            Инициализация агента.
 
         Args:
             tools: Список инструментов, доступных агенту.
         """
-        super().__init__()
         self.system_prompt = system_prompt
         self.llm = llm
-        self.tools = tools or []
+        self.messages: List[Dict[str, Any]] = []
 
     def process_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Обрабатывает входящее сообщение и возвращает ответ.
+        Description:
+            Обрабатывает входящее сообщение и возвращает ответ.
 
         Args:
             message: Входящее сообщение.
@@ -51,19 +56,63 @@ class BaseAgent(AgentState):
         self.messages.append({"role": "assistant", "content": response})
 
         return response
-
-    def call_tool(self, tool_name: str, **kwargs) -> Any:
+    
+    def search_rag(self, query: str, index: FAISS) -> str:
         """
-        Вызывает инструмент по имени.
+        Description:
+            Выполняет поиск по базе знаний (RAG) и возвращает ответ.
+        
+        Args:
+            query: Запрос пользователя.
+            index: Faiss индекс для поиска.
+        
+        Returns:
+            Ответ на основе RAG.
+        """
+        # Создаем цепочку для вопрос-ответ
+        qa_chain = load_qa_chain(ChatOpenAI(model_name="gpt-4o-mini"), chain_type="map_reduce")
+        
+        # Выполняем поиск
+        docs = index.similarity_search(query)
+        
+        # Генерируем ответ
+        answer = qa_chain.invoke({
+            "input_documents": docs, 
+            "question": query
+        })
+        
+        return answer
+
+    def save_faiss_index(self, index: faiss.Index, filename: str):
+        """
+        Description:
+            Сохраняет FAISS индекс в файл.
 
         Args:
-            tool_name: Имя инструмента.
-            **kwargs: Дополнительные аргументы для инструмента.
+            index: FAISS индекс для сохранения.
+            filename: Имя файла для сохранения.
+        """
+        try:
+            index.save(filename)
+            print(f"FAISS index saved to {filename}")
+        except Exception as e:
+            print(f"Error saving FAISS index: {e}")
+
+    def load_faiss_index(self, filename: str) -> faiss.Index:
+        """
+        Description:
+            Загружает FAISS индекс из файла.
+
+        Args:
+            filename: Имя файла для загрузки индекса.
 
         Returns:
-            Результат работы инструмента.
+            faiss.Index: Загруженный FAISS индекс.
         """
-        for tool in self.tools:
-            if tool.__class__.__name__ == tool_name:
-                return tool.run(**kwargs)
-        raise ValueError(f"Инструмент '{tool_name}' не найден.")
+        try:
+            index = faiss.read_index(filename)
+            print(f"FAISS index loaded from {filename}")
+            return index
+        except Exception as e:
+            print(f"Error loading FAISS index: {e}")
+            return None

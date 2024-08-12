@@ -1,34 +1,27 @@
+# ============================
+# БЛОК ИМПОРТОВ
+# ============================
 # Импорт стандартных библиотек
 import os
 import logging
-from pathlib import Path
 
 # Импорт библиотеки для загрузки переменных окружения из файла .env
 from dotenv import load_dotenv
 
-# Импорт аннотаций типов
-from typing import Any, Dict, List
-
 # Импорт внешних библиотек
 import openai
-from pydantic import BaseModel
 from flask import Flask, request, render_template, redirect, url_for, send_from_directory
 from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
-
-# Импорт библиотек LangChain
-from langchain_core.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from langchain.agents import Tool, AgentExecutor, LLMSingleActionAgent
-from langchain.schema import AgentAction, AgentFinish
-from langchain.chains.combine_documents.map_reduce import MapReduceDocumentsChain
-from langchain.docstore.document import Document
 
 # Импорт внутренних библиотек
 from back.file_manager import FileManager
 from back.tools.pdf_loader import pdf_loader
 from back.agent import BaseAgent
 
+# ============================
+# БЛОК НАСТРОЕК И ИНИЦИАЛИЗАЦИИ
+# ============================
 # Загрузка переменных окружения из файла .env
 load_dotenv()
 
@@ -39,17 +32,17 @@ LANGCHAIN_API_KEY        = os.getenv('LANGCHAIN_API_KEY')
 TAVILY_API_KEY           = os.getenv('TAVILY_API_KEY')
 OPENAI_API_KEY           = os.environ['OPENAI_API_KEY']
 
-openai.api_key = OPENAI_API_KEY
-
+# Инициализация логгера
 logging.basicConfig(level=logging.DEBUG)
+logging.getLogger('socketio').setLevel(logging.DEBUG)
+logging.getLogger('engineio').setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Flask веб-приложение
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'SECRET!'
-app.config['UPLOAD_FOLDER'] = os.getcwd()
-socketio = SocketIO(app)
-file_manager = FileManager(working_directory=os.getcwd())
+# Инициализация клиента OpenAI
+openai.api_key = OPENAI_API_KEY
+
+# Инициализация файл-менеджера
+file_manager = FileManager()
 
 # Инициализация агента
 agent = BaseAgent(
@@ -57,6 +50,16 @@ agent = BaseAgent(
     system_prompt=file_manager.read_document('prompts/system_prompt.txt'),
     tools=[]
 )
+
+# ============================
+# БЛОК НАСТРОЕК FLASK ПРИЛОЖЕНИЯ
+# ============================
+# Flask веб-приложение
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'SECRET!'
+app.config['UPLOAD_FOLDER'] = file_manager.working_directory
+socketio = SocketIO(app, cors_allowed_origins="*")
+
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     """
@@ -73,9 +76,11 @@ def upload_file():
         None
     """
     if request.method == 'POST':
+        # Возврат на страницу, если файл не был загружен
         if 'file' not in request.files:
             return redirect(request.url)
         file = request.files['file']
+        # Возврат на страницу, если файл не выбран
         if file.filename == '':
             return redirect(request.url)
         if file:
@@ -107,11 +112,16 @@ def process_pdf():
     if file.filename == '':
         return "No selected file", 400
 
+    # Сохранение файла на сервере
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(file_path)
 
-    pdf_pages = pdf_loader(file_path)
+    pdf_pages, faiss_index = pdf_loader(file_path)
+    
+    # Создаем Faiss индекс на основе PDF файла
+    unique_filename = os.path.join(app.config['UPLOAD_FOLDER'], "PDF.faiss")
+    file_manager.save_faiss_index(faiss_index.index, unique_filename)
 
     # Итеративная суммаризация
     summary = ""
@@ -124,10 +134,8 @@ def process_pdf():
     # Запись окончательной суммаризации
     file_manager.write_document(summary, 'final_summary.md')
 
-    # Чтение окончательной суммаризации для отображения в веб-интерфейсе
-    final_summary_content = file_manager.read_document('final_summary.md')
+    return "Faiss indices and file summarization are ready"
 
-    return final_summary_content
 @app.route('/download_summary')
 def download_summary():
     """
@@ -143,7 +151,19 @@ def download_summary():
     Raises:
         None
     """
-    return send_from_directory(file_manager.working_directory, 'final_summary.md', as_attachment=True)
+    try:
+        # Убедимся, что файл существует перед попыткой его отправки
+        summary_path = os.path.join(file_manager.working_directory, 'final_summary.md')
+        if not os.path.exists(summary_path):
+            return "Summary file not found", 404
+
+        # Отправка файла клиенту
+        return send_from_directory(file_manager.working_directory, 'final_summary.md', as_attachment=True)
+    
+    except Exception as e:
+        # Логирование ошибки для последующей диагностики
+        logger.error(f"Error during file download: {e}")
+        return "An error occurred while processing the download", 500
 @socketio.on('message')
 def handle_message(data):
     """
@@ -158,8 +178,20 @@ def handle_message(data):
     """
     message = data.get('message')
     if message:
-        response = agent.process_message({"content": message})
-        emit('response', {'message': response["content"]})
+        # Загружаем соответствующий Faiss индекс (например, последний загруженный PDF файл)
+        faiss_index = file_manager.load_faiss_index("PDF.faiss")
 
+        # Используем RAG для ответа на запрос
+        response = agent.search_rag(message, faiss_index)
+        
+        # Преобразуем ответ в JSON-сериализуемый формат
+        response_dict = {
+            "output_text": response["output_text"]
+        }
+        
+        emit('response', {'message': response_dict['output_text']})
+
+# Запуск приложения
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5002, log_output=False)
+

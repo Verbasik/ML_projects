@@ -1,4 +1,6 @@
-const socket = io.connect();
+const socket = io.connect({
+    transports: ['websocket', 'polling']
+});
 
 document.getElementById('send-button').addEventListener('click', () => {
     const userInput = document.getElementById('user-input').value;
@@ -25,6 +27,7 @@ function appendMessage(sender, message, className) {
 const uploadButton = document.getElementById('upload-button');
 const pdfInput = document.getElementById('pdf-input');
 const pdfForm = document.getElementById('pdf-form');
+const spinner = document.getElementById('spinner');
 
 uploadButton.addEventListener('click', () => {
     if (uploadButton.textContent.trim() === 'Upload PDF') {
@@ -46,6 +49,11 @@ function processPDF() {
     const formData = new FormData(pdfForm);
     formData.append('file_path', pdfInput.files[0]);
 
+    // Показываем спиннер и скрываем кнопку отправки
+    spinner.style.display = 'block';
+    uploadButton.querySelector('span').textContent = 'Processing...';
+    uploadButton.disabled = true; // Отключаем кнопку
+
     fetch('/process_pdf', {
         method: 'POST',
         body: formData
@@ -55,7 +63,12 @@ function processPDF() {
         document.getElementById('chat-box').innerHTML += `<div class="chatbox__messages__user-message--ind-message bot-message"><p class="name">Bot:</p><p class="message">${data}</p></div>`;
         uploadButton.querySelector('span').textContent = 'Download';
     })
-    .catch(error => console.error('Error:', error));
+    .catch(error => console.error('Error:', error))
+    .finally(() => {
+        // Скрываем спиннер и активируем кнопку
+        spinner.style.display = 'none';
+        uploadButton.disabled = false;
+    });
 }
 
 function downloadSummary() {

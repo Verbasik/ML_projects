@@ -1,6 +1,19 @@
+# ============================
+# БЛОК ИМПОРТОВ
+# ============================
 # Импорт стандартных библиотек
 import logging
 from pathlib import Path
+
+# Импорт аннотаций типов
+from typing import Any
+
+# Импорт для поиска по векторным представлениям
+import faiss
+
+# Импорт библиотек LangChain
+from langchain_community.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings
 
 class FileManager:
     """
@@ -19,6 +32,7 @@ class FileManager:
         """
         # Создаем рабочую директорию
         self.working_directory = Path(working_directory).absolute()
+        self.working_directory.mkdir(parents=True, exist_ok=True)
         logging.info("WORKING_DIRECTORY: %s", self.working_directory)
 
     def read_document(self, file_name: str) -> str:
@@ -149,3 +163,51 @@ class FileManager:
             # Логируем ошибку и возвращаем сообщение об ошибке
             logging.error(f"Error appending to file {file_name}: {e}")
             return f"Error appending to file {file_name}: {e}"
+        
+    def save_faiss_index(self, index: Any, file_name: str) -> str:
+        """
+        Description:
+            Сохраняет FAISS индекс в файл.
+
+        Args:
+            index: FAISS индекс для сохранения.
+            file_name: Имя файла для сохранения индекса.
+
+        Returns:
+            str: Сообщение о сохранении индекса.
+        """
+        try:
+            file_path = self.working_directory / file_name.lstrip('/')
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Сохранение индекса FAISS
+            faiss.write_index(index, str(file_path))
+            return f"FAISS index saved to {file_name}"
+        except IOError as e:
+            logging.error(f"Error saving FAISS index to file {file_name}: {e}")
+            return f"Error saving FAISS index to file {file_name}: {e}"
+
+    def load_faiss_index(self, file_name: str) -> Any:
+        """
+        Description:
+            Загружает FAISS индекс из файла.
+
+        Args:
+            file_name: Имя файла для загрузки индекса.
+
+        Returns:
+            Any: Загруженный FAISS индекс.
+        """
+        try:
+            file_path = self.working_directory / file_name.lstrip('/')
+            
+            # Загрузка индекса FAISS
+            embeddings  = OpenAIEmbeddings()
+            faiss_index = FAISS.load_local(file_path, embeddings, allow_dangerous_deserialization=True)
+            return faiss_index
+        except FileNotFoundError:
+            logging.error(f"FAISS index file {file_name} not found at path: {file_path}")
+            return None
+        except IOError as e:
+            logging.error(f"Error loading FAISS index from file {file_name}: {e}")
+            return None
