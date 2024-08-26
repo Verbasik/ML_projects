@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 # Импорт внешних библиотек
 import openai
-from flask import Flask, request, render_template, redirect, url_for, send_from_directory
+from flask import Flask, render_template, redirect, url_for, send_from_directory, request, session
 from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
 
@@ -18,6 +18,9 @@ from werkzeug.utils import secure_filename
 from back.file_manager import FileManager
 from back.tools.pdf_loader import pdf_loader
 from back.agent import BaseAgent
+
+# LangSmith импорты:
+from langsmith import traceable
 
 # ============================
 # БЛОК НАСТРОЕК И ИНИЦИАЛИЗАЦИИ
@@ -60,6 +63,7 @@ app.config['SECRET_KEY'] = 'SECRET!'
 app.config['UPLOAD_FOLDER'] = file_manager.working_directory
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+@traceable
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     """
@@ -90,6 +94,8 @@ def upload_file():
             return redirect(url_for('process_pdf', file_path=file_path))
     
     return render_template('html/home.html')
+
+@traceable
 @app.route('/process_pdf', methods=['POST'])
 def process_pdf():
     """
@@ -114,28 +120,36 @@ def process_pdf():
 
     # Сохранение файла на сервере
     filename = secure_filename(file.filename)
+    file_base_name = os.path.splitext(filename)[0]
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(file_path)
 
     pdf_pages, faiss_index = pdf_loader(file_path)
     
     # Создаем Faiss индекс на основе PDF файла
-    unique_filename = os.path.join(app.config['UPLOAD_FOLDER'], "PDF.faiss")
+    unique_filename = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_base_name}.faiss")
     file_manager.save_faiss_index(faiss_index.index, unique_filename)
 
     # Итеративная суммаризация
     summary = ""
+    summary_filename = f"{file_base_name}.md"
+
     for page in pdf_pages:
         prompt = file_manager.read_document('prompts/chank_prompt.txt') + "\n" + page.page_content
         summarized_content = agent.process_message({"content": prompt})
         summary += summarized_content + "\n"
-        file_manager.append_document(summarized_content, 'summary.md')
+        file_manager.append_document(summarized_content, summary_filename)
 
     # Запись окончательной суммаризации
-    file_manager.write_document(summary, 'final_summary.md')
+    file_manager.write_document(summary, summary_filename)
 
-    return "Faiss indices and file summarization are ready"
+    # Сохранение имен файлов в сессии для дальнейшего использования
+    session['summary_filename'] = summary_filename
+    session['faiss_index_filename'] = unique_filename
 
+    return f"Faiss indices and file summarization are ready: {summary_filename}"
+
+@traceable
 @app.route('/download_summary')
 def download_summary():
     """
@@ -153,17 +167,22 @@ def download_summary():
     """
     try:
         # Убедимся, что файл существует перед попыткой его отправки
-        summary_path = os.path.join(file_manager.working_directory, 'final_summary.md')
+        summary_filename = session.get('summary_filename', None)
+        if not summary_filename:
+            return "Summary file not found", 404
+        
+        summary_path = os.path.join(file_manager.working_directory, summary_filename)
         if not os.path.exists(summary_path):
             return "Summary file not found", 404
 
         # Отправка файла клиенту
-        return send_from_directory(file_manager.working_directory, 'final_summary.md', as_attachment=True)
+        return send_from_directory(file_manager.working_directory, summary_filename, as_attachment=True)
     
     except Exception as e:
         # Логирование ошибки для последующей диагностики
         logger.error(f"Error during file download: {e}")
         return "An error occurred while processing the download", 500
+    
 @socketio.on('message')
 def handle_message(data):
     """
@@ -178,8 +197,15 @@ def handle_message(data):
     """
     message = data.get('message')
     if message:
+        # Загружаем faiss индекс из сессии для дальнейшего использования
+        faiss_index_filename = session.get('faiss_index_filename', None)
+
+        if not faiss_index_filename:
+            emit('response', {'message': 'Faiss index not found'})
+            return
+        
         # Загружаем соответствующий Faiss индекс (например, последний загруженный PDF файл)
-        faiss_index = file_manager.load_faiss_index("PDF.faiss")
+        faiss_index = file_manager.load_faiss_index(faiss_index_filename)
 
         # Используем RAG для ответа на запрос
         response = agent.search_rag(message, faiss_index)
