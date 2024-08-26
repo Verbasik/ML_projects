@@ -34,7 +34,4 @@ def pdf_loader(file_path: str) -> List[str]:
     embeddings = OpenAIEmbeddings()
     faiss_index = FAISS.from_documents(docs, embeddings)
     
-    # Сохраняем FAISS индекс локально
-    faiss_index.save_local("temp/PDF.faiss")
-    
     return docs, faiss_index
