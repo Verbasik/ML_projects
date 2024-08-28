@@ -77,4 +77,4 @@
     ```
 
 ## License
-This project is licensed under the GNU AFFERO GENERAL PUBLIC LICENSE - see the [[LICENSE](LICENSE)](https://github.com/Verbasik/ML_projects/blob/53737f4d56504ec9fb34299f589194c8c40c0ac9/MouseGPT/LICENSE) file for details.
+This project is licensed under the GNU AFFERO GENERAL PUBLIC LICENSE - see the [[LICENSE](https://github.com/Verbasik/ML_projects/blob/53737f4d56504ec9fb34299f589194c8c40c0ac9/MouseGPT/LICENSE)] file for details.
