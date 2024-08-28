@@ -15,8 +15,9 @@ from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
 
 # Импорт внутренних библиотек
+from back.tools.pdf_loader   import pdf_loader
+from back.tools.ipynb_loader import ipynb_loader
 from back.file_manager import FileManager
-from back.tools.pdf_loader import pdf_loader
 from back.agent import BaseAgent
 
 # LangSmith импорты:
@@ -148,6 +149,51 @@ def process_pdf():
     session['faiss_index_filename'] = unique_filename
 
     return f"Faiss indices and file summarization are ready: {summary_filename}"
+
+@app.route('/process_ipynb', methods=['POST'])
+def process_ipynb():
+    """
+    Description:
+        Обрабатывает .ipynb файл и создает его суммаризацию.
+
+    Args:
+        None
+
+    Returns:
+        HTML-страница с суммаризацией .ipynb файла.
+
+    Raises:
+        None
+    """
+    if 'file_path' not in request.files:
+        return "No file provided", 400
+
+    file = request.files['file_path']
+    if file.filename == '':
+        return "No selected file", 400
+
+    filename = secure_filename(file.filename)
+    file_base_name = os.path.splitext(filename)[0]
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(file_path)
+
+    # Загрузка и обработка .ipynb файла
+    chunks = ipynb_loader(file_path)
+    
+    summary = ""
+    summary_filename = f"{file_base_name}.md"
+    for chunk in chunks:
+        prompt = file_manager.read_document('prompts/chank_prompt.txt') + "\n" + chunk
+        summarized_content = agent.process_message({"content": prompt})
+        summary += summarized_content + "\n"
+        file_manager.append_document(summarized_content, summary_filename)
+
+    file_manager.write_document(summary, summary_filename)
+
+    session['summary_filename'] = summary_filename
+
+    return f"Notebook summarization is ready: {summary_filename}"
+
 
 @traceable
 @app.route('/download_summary')

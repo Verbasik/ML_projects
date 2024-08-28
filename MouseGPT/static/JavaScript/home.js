@@ -30,10 +30,10 @@ const pdfForm = document.getElementById('pdf-form');
 const spinner = document.getElementById('spinner');
 
 uploadButton.addEventListener('click', () => {
-    if (uploadButton.textContent.trim() === 'Upload PDF') {
+    if (uploadButton.textContent.trim() === 'Upload File') {
         pdfInput.click();
     } else if (uploadButton.textContent.trim() === 'Send') {
-        processPDF();
+        processFile();
     } else if (uploadButton.textContent.trim() === 'Download') {
         downloadSummary();
     }
@@ -45,16 +45,29 @@ pdfInput.addEventListener('change', () => {
     }
 });
 
-function processPDF() {
+function processFile() {
     const formData = new FormData(pdfForm);
-    formData.append('file_path', pdfInput.files[0]);
+    const file = pdfInput.files[0];
+    formData.append('file_path', file);
+
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    let route = '';
+
+    if (fileExtension === 'pdf') {
+        route = '/process_pdf';
+    } else if (fileExtension === 'ipynb') {
+        route = '/process_ipynb';
+    } else {
+        alert('Unsupported file format.');
+        return;
+    }
 
     // Показываем спиннер и скрываем кнопку отправки
     spinner.style.display = 'block';
     uploadButton.querySelector('span').textContent = 'Processing...';
     uploadButton.disabled = true; // Отключаем кнопку
 
-    fetch('/process_pdf', {
+    fetch(route, {
         method: 'POST',
         body: formData
     })
