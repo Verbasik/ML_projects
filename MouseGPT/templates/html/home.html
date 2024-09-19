@@ -293,24 +293,25 @@
     <div class="container">
         <h1>🐭 MouseGPT</h1>
         <div class='chatbox'>
-            <div class='chatbox__Tool-list'>
-            </div>
-            <div class="chatbox__messages" id="chat-box">
-                <!-- Сообщения чата будут добавляться сюда -->
-            </div>
+            <div class="chatbox__messages" id="chat-box"></div>
             <form>
                 <input type="text" id="user-input" placeholder="Enter your message">
                 <button type="button" id="send-button">Send</button>
             </form>
         </div>
-        <form id="pdf-form" enctype="multipart/form-data">
-            <input type="file" id="pdf-input" accept=".pdf,.ipynb" style="display: none;">
-            <button type="button" class="custom-btn btn-8" id="upload-button"><span>Upload File</span></button>
+        
+        <!-- Объединяем форму для загрузки PDF и видео -->
+        <form id="file-form" enctype="multipart/form-data">
+            <input type="file" id="file-input" name="file" accept=".pdf,.ipynb,.mp4,.mov,.avi,.mp3,.wav,.ogg,.m4a" style="display: none;">
+            <button type="button" class="custom-btn btn-8" id="upload-file-button"><span>Upload File</span></button>
             <div id="spinner" class="spinner"></div>
         </form>
     </div>
+    
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='JavaScript/home.js') }}"></script>
+</body>
+</html>

@@ -15,8 +15,7 @@ from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
 
 # Импорт внутренних библиотек
-from back.tools.pdf_loader   import pdf_loader
-from back.tools.ipynb_loader import ipynb_loader
+from back.tools.process_file import process_file, process_pdf_file, process_ipynb_file, process_video_file, process_audio_file
 from back.file_manager import FileManager
 from back.agent import BaseAgent
 
@@ -35,6 +34,14 @@ LANGCHAIN_TRACING_V2     = os.getenv('LANGCHAIN_TRACING_V2')
 LANGCHAIN_API_KEY        = os.getenv('LANGCHAIN_API_KEY')
 TAVILY_API_KEY           = os.getenv('TAVILY_API_KEY')
 OPENAI_API_KEY           = os.environ['OPENAI_API_KEY']
+
+# Централизованная конфигурация типов файлов
+FILE_TYPES = {
+    'pdf':      {'extensions': ['pdf'],                      'processor': process_pdf_file},
+    'notebook': {'extensions': ['ipynb'],                    'processor': process_ipynb_file},
+    'audio':    {'extensions': ['mp3', 'wav', 'ogg', 'm4a'], 'processor': process_audio_file},
+    'video':    {'extensions': ['mp4', 'avi', 'mov'],        'processor': process_video_file}
+}
 
 # Инициализация логгера
 logging.basicConfig(level=logging.DEBUG)
@@ -81,19 +88,34 @@ def upload_file():
         None
     """
     if request.method == 'POST':
-        # Возврат на страницу, если файл не был загружен
+        # Проверяем, есть ли файл в запросе
         if 'file' not in request.files:
+            # Если файл отсутствует, возвращаемся на страницу загрузки
             return redirect(request.url)
+        
         file = request.files['file']
-        # Возврат на страницу, если файл не выбран
+        
+        # Проверяем, выбран ли файл (пустое имя файла означает, что файл не выбран)
         if file.filename == '':
+            # Если файл не выбран, возвращаемся на страницу загрузки
             return redirect(request.url)
+        
         if file:
+            # Получаем безопасное имя файла, чтобы избежать проблем с системой файлов
             filename = secure_filename(file.filename)
+            
+            # Формируем полный путь для сохранения файла
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            
+            # Сохраняем файл на сервере
             file.save(file_path)
+            
+            # Перенаправляем на обработку PDF файла
+            # Примечание: здесь предполагается, что все файлы - PDF. 
+            # Возможно, стоит добавить проверку типа файла, как в функции upload_video
             return redirect(url_for('process_pdf', file_path=file_path))
     
+    # Если метод GET или файл не был успешно загружен, отображаем страницу загрузки
     return render_template('html/home.html')
 
 @traceable
@@ -116,39 +138,8 @@ def process_pdf():
         return "No file provided", 400
 
     file = request.files['file_path']
-    if file.filename == '':
-        return "No selected file", 400
-
-    # Сохранение файла на сервере
-    filename = secure_filename(file.filename)
-    file_base_name = os.path.splitext(filename)[0]
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(file_path)
-
-    pdf_pages, faiss_index = pdf_loader(file_path)
-    
-    # Создаем Faiss индекс на основе PDF файла
-    unique_filename = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_base_name}.faiss")
-    file_manager.save_faiss_index(faiss_index.index, unique_filename)
-
-    # Итеративная суммаризация
-    summary = ""
-    summary_filename = f"{file_base_name}.md"
-
-    for page in pdf_pages:
-        prompt = file_manager.read_document('prompts/chank_prompt.txt') + "\n" + page.page_content
-        summarized_content = agent.process_message({"content": prompt})
-        summary += summarized_content + "\n"
-        file_manager.append_document(summarized_content, summary_filename)
-
-    # Запись окончательной суммаризации
-    file_manager.write_document(summary, summary_filename)
-
-    # Сохранение имен файлов в сессии для дальнейшего использования
-    session['summary_filename'] = summary_filename
-    session['faiss_index_filename'] = unique_filename
-
-    return f"Faiss indices and file summarization are ready: {summary_filename}"
+    summary_filename = process_file(file, agent, file_manager, session, process_pdf_file, 'text')
+    return f"PDF summarization is ready: {summary_filename}"
 
 @app.route('/process_ipynb', methods=['POST'])
 def process_ipynb():
@@ -169,31 +160,107 @@ def process_ipynb():
         return "No file provided", 400
 
     file = request.files['file_path']
-    if file.filename == '':
-        return "No selected file", 400
-
-    filename = secure_filename(file.filename)
-    file_base_name = os.path.splitext(filename)[0]
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(file_path)
-
-    # Загрузка и обработка .ipynb файла
-    chunks = ipynb_loader(file_path)
-    
-    summary = ""
-    summary_filename = f"{file_base_name}.md"
-    for chunk in chunks:
-        prompt = file_manager.read_document('prompts/chank_prompt.txt') + "\n" + chunk
-        summarized_content = agent.process_message({"content": prompt})
-        summary += summarized_content + "\n"
-        file_manager.append_document(summarized_content, summary_filename)
-
-    file_manager.write_document(summary, summary_filename)
-
-    session['summary_filename'] = summary_filename
-
+    summary_filename = process_file(file, agent, file_manager, session, process_ipynb_file, 'text')
     return f"Notebook summarization is ready: {summary_filename}"
 
+@app.route('/process_audio', methods=['POST'])
+def process_audio():
+    """
+    Description:
+        Обрабатывает загруженный аудиофайл и создает его транскрипцию и суммаризацию.
+
+    Args:
+        None (данные получаются из request.files)
+
+    Returns:
+        str: Сообщение о готовности транскрипции и суммаризации аудио с именем файла суммаризации.
+        tuple: В случае ошибки возвращает сообщение об ошибке и код состояния HTTP.
+
+    Raises:
+        None (исключения обрабатываются внутри функции)
+    """
+    if 'file_path' not in request.files:
+        return "No file provided", 400
+
+    file = request.files['file_path']
+    summary_filename = process_file(file, agent, file_manager, session, process_audio_file, 'text')
+    return f"Audio transcription and summarization are ready: {summary_filename}"
+
+@app.route('/process_video', methods=['POST'])
+def process_video():
+    """
+    Description:
+        Обрабатывает загруженный видеофайл, транскрибирует его и создает суммаризацию.
+
+    Args:
+        None (данные получаются из request.files)
+
+    Returns:
+        str: Сообщение о готовности транскрибации и суммаризации видео с именем файла суммаризации.
+        tuple: В случае ошибки возвращает сообщение об ошибке и код состояния HTTP.
+
+    Raises:
+        None (исключения обрабатываются внутри функции)
+    """
+    if 'file_path' not in request.files:
+        return "No file provided", 400
+
+    file = request.files['file_path']
+    summary_filename = process_file(file, agent, file_manager, session, process_video_file, 'text')
+    return f"Video transcription and summarization are ready: {summary_filename}"
+
+@app.route('/upload_video', methods=['GET', 'POST'])
+def upload_video():
+    """
+    Description:
+        Обрабатывает загрузку видеофайла на сервер.
+
+    Args:
+        None
+
+    Returns:
+        GET: HTML-страница для загрузки видеофайла.
+        POST: Перенаправление на страницу обработки видео после успешной загрузки.
+
+    Raises:
+        None
+    """
+    if request.method == 'POST':
+        # Проверяем, есть ли файл в запросе
+        if 'file' not in request.files:
+            return redirect(request.url)
+        
+        file = request.files['file']
+        
+        # Проверяем, выбран ли файл (пустое имя файла означает, что файл не выбран)
+        if file.filename == '':
+            return redirect(request.url)
+        
+        if file:
+            # Получаем безопасное имя файла
+            filename = secure_filename(file.filename)
+            
+            # Формируем полный путь для сохранения файла
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            
+            # Сохраняем файл
+            file.save(file_path)
+            
+            # Получаем расширение файла
+            file_extension = filename.rsplit('.', 1)[1].lower()
+            
+            # Перенаправляем на соответствующий обработчик в зависимости от типа файла
+            if file_extension in ['mp3', 'wav', 'ogg', 'm4a']:
+                return redirect(url_for('process_audio', file_path=file_path))
+            elif file_extension == 'pdf':
+                return redirect(url_for('process_pdf',   file_path=file_path))
+            elif file_extension == 'ipynb':
+                return redirect(url_for('process_ipynb', file_path=file_path))
+            elif file_extension in ['mp4', 'avi', 'mov']:
+                return redirect(url_for('process_video', file_path=file_path))
+    
+    # Если метод GET или файл не был успешно загружен, отображаем страницу загрузки
+    return render_template('html/home.html')
 
 @traceable
 @app.route('/download_summary')
