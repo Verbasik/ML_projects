@@ -24,48 +24,52 @@ function appendMessage(sender, message, className) {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-const uploadButton = document.getElementById('upload-button');
-const pdfInput = document.getElementById('pdf-input');
-const pdfForm = document.getElementById('pdf-form');
+const uploadFileButton = document.getElementById('upload-file-button');
+const fileInput = document.getElementById('file-input');
+const fileForm = document.getElementById('file-form');
 const spinner = document.getElementById('spinner');
 
-uploadButton.addEventListener('click', () => {
-    if (uploadButton.textContent.trim() === 'Upload File') {
-        pdfInput.click();
-    } else if (uploadButton.textContent.trim() === 'Send') {
+uploadFileButton.addEventListener('click', () => {
+    if (uploadFileButton.textContent.trim() === 'Upload File') {
+        fileInput.click();
+    } else if (uploadFileButton.textContent.trim() === 'Send') {
         processFile();
-    } else if (uploadButton.textContent.trim() === 'Download') {
+    } else if (uploadFileButton.textContent.trim() === 'Download') {
         downloadSummary();
     }
 });
 
-pdfInput.addEventListener('change', () => {
-    if (pdfInput.files.length > 0) {
-        uploadButton.querySelector('span').textContent = 'Send';
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) {
+        uploadFileButton.querySelector('span').textContent = 'Send';
     }
 });
 
 function processFile() {
-    const formData = new FormData(pdfForm);
-    const file = pdfInput.files[0];
+    const formData = new FormData(fileForm);
+    const file = fileInput.files[0];
     formData.append('file_path', file);
 
     const fileExtension = file.name.split('.').pop().toLowerCase();
     let route = '';
 
+    // Определение маршрута в зависимости от типа файла
     if (fileExtension === 'pdf') {
         route = '/process_pdf';
     } else if (fileExtension === 'ipynb') {
         route = '/process_ipynb';
+    } else if (['mp4', 'mov', 'avi', 'm4a'].includes(fileExtension)) {
+        route = '/process_video';
+    } else if (['mp3', 'wav', 'ogg'].includes(fileExtension)) {
+        route = '/process_audio';
     } else {
         alert('Unsupported file format.');
         return;
     }
 
-    // Показываем спиннер и скрываем кнопку отправки
     spinner.style.display = 'block';
-    uploadButton.querySelector('span').textContent = 'Processing...';
-    uploadButton.disabled = true; // Отключаем кнопку
+    uploadFileButton.querySelector('span').textContent = 'Processing...';
+    uploadFileButton.disabled = true;
 
     fetch(route, {
         method: 'POST',
@@ -74,13 +78,12 @@ function processFile() {
     .then(response => response.text())
     .then(data => {
         document.getElementById('chat-box').innerHTML += `<div class="chatbox__messages__user-message--ind-message bot-message"><p class="name">Bot:</p><p class="message">${data}</p></div>`;
-        uploadButton.querySelector('span').textContent = 'Download';
+        uploadFileButton.querySelector('span').textContent = 'Download';
     })
     .catch(error => console.error('Error:', error))
     .finally(() => {
-        // Скрываем спиннер и активируем кнопку
         spinner.style.display = 'none';
-        uploadButton.disabled = false;
+        uploadFileButton.disabled = false;
     });
 }
 
