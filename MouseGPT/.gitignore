@@ -34,3 +34,8 @@ back/
 # Ignore any IDE specific files
 .idea/
 .vscode/
+
+# Ignore files in the directory __pycache__
+__pycache__
+**/__pycache__/
+**/**/__pycache__/

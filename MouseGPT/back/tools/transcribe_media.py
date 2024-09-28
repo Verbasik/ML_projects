@@ -53,10 +53,17 @@ def transcribe_media(file_path: str) -> list[str]:
             chunks_count = math.ceil(duration_ms / chunk_duration_ms)  # Количество чанков
             
             transcribed_chunks = []
+            print(f"Начинаем распознавание речи. Всего чанков: {chunks_count}")
+            print(f"Общая длительность аудио: {duration_ms / 1000:.2f} секунд")
+            print("-" * 50)
+
             for i in range(chunks_count):
                 # Определяем начало и конец текущего чанка
                 start = i * chunk_duration_ms
                 end = min((i + 1) * chunk_duration_ms, duration_ms)
+                
+                print(f"Обработка чанка {i+1}/{chunks_count} ({(i+1)/chunks_count*100:.1f}%)")
+                print(f"Временной интервал: {start/1000:.2f}с - {end/1000:.2f}с")
                 
                 # Читаем часть аудио из источника
                 audio_chunk = recognizer.record(source, duration=(end - start) / 1000, offset=start / 1000)
@@ -65,15 +72,23 @@ def transcribe_media(file_path: str) -> list[str]:
                 try:
                     text = recognizer.recognize_google(audio_chunk, language="ru-RU")
                     transcribed_chunks.append(text)
+                    print(f"Распознанный текст: {text}")
                 except sr.UnknownValueError:
                     # Если не удалось распознать текст, добавляем пустую строку
                     transcribed_chunks.append("")
+                    print("❌ Не удалось распознать речь в этом фрагменте")
                 except sr.RequestError as e:
-                    print(f"Ошибка при запросе к сервису Google Speech Recognition; {e}")
+                    error_message = f"Ошибка при запросе к сервису Google Speech Recognition: {e}"
+                    print(f"⚠️ {error_message}")
                     transcribed_chunks.append(f"Error during recognition: {str(e)}")
+                
+                print("-" * 50)
 
                 # Добавляем задержку между запросами
                 time.sleep(1)
+
+            print(f"Распознавание завершено. Обработано {chunks_count} чанков.")
+            print(f"Общее количество распознанных фрагментов: {len([chunk for chunk in transcribed_chunks if chunk])}")
         
         # Удаляем временный аудио файл, если он был создан
         if is_video and os.path.exists(temp_audio_path):

@@ -71,7 +71,6 @@ app.config['SECRET_KEY'] = 'SECRET!'
 app.config['UPLOAD_FOLDER'] = file_manager.working_directory
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-@traceable
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     """
@@ -109,16 +108,10 @@ def upload_file():
             
             # Сохраняем файл на сервере
             file.save(file_path)
-            
-            # Перенаправляем на обработку PDF файла
-            # Примечание: здесь предполагается, что все файлы - PDF. 
-            # Возможно, стоит добавить проверку типа файла, как в функции upload_video
-            return redirect(url_for('process_pdf', file_path=file_path))
     
     # Если метод GET или файл не был успешно загружен, отображаем страницу загрузки
     return render_template('html/home.html')
 
-@traceable
 @app.route('/process_pdf', methods=['POST'])
 def process_pdf():
     """
@@ -209,60 +202,6 @@ def process_video():
     summary_filename = process_file(file, agent, file_manager, session, process_video_file, 'text')
     return f"Video transcription and summarization are ready: {summary_filename}"
 
-@app.route('/upload_video', methods=['GET', 'POST'])
-def upload_video():
-    """
-    Description:
-        Обрабатывает загрузку видеофайла на сервер.
-
-    Args:
-        None
-
-    Returns:
-        GET: HTML-страница для загрузки видеофайла.
-        POST: Перенаправление на страницу обработки видео после успешной загрузки.
-
-    Raises:
-        None
-    """
-    if request.method == 'POST':
-        # Проверяем, есть ли файл в запросе
-        if 'file' not in request.files:
-            return redirect(request.url)
-        
-        file = request.files['file']
-        
-        # Проверяем, выбран ли файл (пустое имя файла означает, что файл не выбран)
-        if file.filename == '':
-            return redirect(request.url)
-        
-        if file:
-            # Получаем безопасное имя файла
-            filename = secure_filename(file.filename)
-            
-            # Формируем полный путь для сохранения файла
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            
-            # Сохраняем файл
-            file.save(file_path)
-            
-            # Получаем расширение файла
-            file_extension = filename.rsplit('.', 1)[1].lower()
-            
-            # Перенаправляем на соответствующий обработчик в зависимости от типа файла
-            if file_extension in ['mp3', 'wav', 'ogg', 'm4a']:
-                return redirect(url_for('process_audio', file_path=file_path))
-            elif file_extension == 'pdf':
-                return redirect(url_for('process_pdf',   file_path=file_path))
-            elif file_extension == 'ipynb':
-                return redirect(url_for('process_ipynb', file_path=file_path))
-            elif file_extension in ['mp4', 'avi', 'mov']:
-                return redirect(url_for('process_video', file_path=file_path))
-    
-    # Если метод GET или файл не был успешно загружен, отображаем страницу загрузки
-    return render_template('html/home.html')
-
-@traceable
 @app.route('/download_summary')
 def download_summary():
     """
@@ -309,7 +248,7 @@ def handle_message(data):
         None
     """
     message = data.get('message')
-    if message:
+    if "@RAG" in message:
         # Загружаем faiss индекс из сессии для дальнейшего использования
         faiss_index_filename = session.get('faiss_index_filename', None)
 
