@@ -8,15 +8,19 @@ from pathlib import Path
 # Импорт внешних библиотек
 from werkzeug.utils import secure_filename
 
+# LangSmith импорты:
+from langsmith import traceable
+
 # Импорт внутренних библиотек
 from back.tools.pdf_loader import pdf_loader
 from back.tools.ipynb_loader import ipynb_loader
 from back.tools.transcribe_media import transcribe_media, merge_chunks
 
+@traceable
 def process_file(file, agent, file_manager, session, process_func, chunk_prompt_type: str) -> str:
     """
     Description:
-        Обрабатывает загруженные файлы (PDF, IPYNB, видео) и создает суммаризацию.
+        Обрабатывает загруженные файлы (PDF, IPYNB, видео, аудео) и создает суммаризацию.
 
     Args:
         file: Загруженный файл.
@@ -59,9 +63,20 @@ def process_file(file, agent, file_manager, session, process_func, chunk_prompt_
     file_exists = Path(file_manager.working_directory / summary_filename).exists()
 
     # Генерация суммаризации по каждому чанку
-    for i, chunk in enumerate(chunks):
+    total_chunks = len(chunks)
+    print(f"Начинаем обработку {total_chunks} чанков текста.")
+    print("-" * 50)
+
+    for i, chunk in enumerate(chunks, 1):
+        print(f"Обработка чанка {i}/{total_chunks} ({i/total_chunks*100:.1f}%)")
+        
         prompt = file_manager.read_document(f'prompts/{chunk_prompt_type}_chank_prompt.txt') + "\n" + chunk
         summarized_content = agent.process_message({"content": prompt})
+        
+        print(f"Результат суммаризации чанка {i}:")
+        print(summarized_content)
+        print("-" * 50)
+        
         summary += summarized_content + "\n"
         
         if i == 0 and not file_exists:
