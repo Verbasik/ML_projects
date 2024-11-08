@@ -1,3 +1,4 @@
+# back/agent.py
 # ============================
 # БЛОК ИМПОРТОВ
 # ============================
@@ -49,7 +50,10 @@ class BaseAgent():
                 {"role": "system", 
                  "content": self.system_prompt},
                 *self.messages
-            ]
+            ],
+            temperature=0.1,
+            top_p=0.9,
+            n = 10
         ).choices[0].message.content
 
         # Добавляем ответ агента в историю

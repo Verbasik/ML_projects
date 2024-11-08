@@ -1,17 +1,31 @@
+# back/tools/transcribe_media.py
 # ============================
 # БЛОК ИМПОРТОВ
 # ============================
 # Импорт внешних библиотек
-import speech_recognition as sr
-from pydub import AudioSegment
-import math
 import os
 import time
+import math
+from pydub import AudioSegment
+
+# Импорт библиотеки для загрузки переменных окружения из файла .env
+from dotenv import load_dotenv
+
+# Импорт внешних библиотек
+from openai import OpenAI
+# ============================
+# БЛОК НАСТРОЕК И ИНИЦИАЛИЗАЦИИ
+# ============================
+# Загрузка переменных окружения из файла .env
+load_dotenv()
+
+# Инициализация клиента OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def transcribe_media(file_path: str) -> list[str]:
     """
     Description:
-        Транскрибирует аудио или видео файл на текст, разбивая на чанки по 30 секунд.
+        Транскрибирует аудио или видео файл на текст, разбивая на чанки по 5 минут.
 
     Args:
         file_path: Путь к аудио или видео файлу.
@@ -36,59 +50,68 @@ def transcribe_media(file_path: str) -> list[str]:
         
         # Если это видео, конвертируем во временный аудио файл
         if is_video:
-            temp_audio_path = "temp.wav"
-            audio.export(temp_audio_path, format="wav")
+            temp_audio_path = "temp.mp3"
+            audio.export(temp_audio_path, format="mp3")
         else:
             temp_audio_path = file_path
         
-        recognizer = sr.Recognizer()
+        # Получаем длительность аудио в миллисекундах
+        duration_ms = len(audio)
         
-        # Работа с аудиофайлом
-        with sr.AudioFile(temp_audio_path) as source:
-            # Получаем длительность аудио в миллисекундах
-            duration_ms = len(audio)
+        # Определяем длительность чанка в миллисекундах (5 минут)
+        chunk_duration_ms = (60 * 5) * 1000
+        chunks_count = math.ceil(duration_ms / chunk_duration_ms)
+        
+        transcribed_chunks = []
+        print(f"🎬 Начинаем распознавание речи. Всего чанков: {chunks_count}")
+        print(f"⏱️ Общая длительность аудио: {duration_ms / 1000:.2f} секунд")
+        print("-" * 50)
+
+        for i in range(chunks_count):
+            # Определяем начало и конец текущего чанка
+            start = i * chunk_duration_ms
+            end = min((i + 1) * chunk_duration_ms, duration_ms)
             
-            # Определяем длительность чанка в миллисекундах
-            chunk_duration_ms = 30 * 1000
-            chunks_count = math.ceil(duration_ms / chunk_duration_ms)  # Количество чанков
+            print(f"🔄 Обработка чанка {i+1}/{chunks_count} ({(i+1)/chunks_count*100:.1f}%)")
+            print(f"🕒 Временной интервал: {start/1000:.2f}с - {end/1000:.2f}с")
             
-            transcribed_chunks = []
-            print(f"Начинаем распознавание речи. Всего чанков: {chunks_count}")
-            print(f"Общая длительность аудио: {duration_ms / 1000:.2f} секунд")
+            # Извлекаем текущий чанк аудио
+            chunk = audio[start:end]
+            chunk_file = f"temp_chunk_{i}.mp3"
+            chunk.export(chunk_file, format="mp3")
+            
+            # Открываем файл чанка для чтения
+            with open(chunk_file, "rb") as audio_file:
+                # Пытаемся распознать текст для текущего чанка с помощью OpenAI API
+                try:
+                    transcription = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file, 
+                        response_format="text"
+                    )
+                    text = transcription
+                    transcribed_chunks.append(text)
+                    print(f"✅ Распознанный текст: {text[:50]}...")  # Показываем первые 50 символов
+                except Exception as e:
+                    error_message = f"Ошибка при распознавании речи: {str(e)}"
+                    print(f"❌ {error_message}")
+                    transcribed_chunks.append(f"Error during recognition: {str(e)}")
+            
+            # Удаляем временный файл чанка
+            os.remove(chunk_file)
+            
             print("-" * 50)
 
-            for i in range(chunks_count):
-                # Определяем начало и конец текущего чанка
-                start = i * chunk_duration_ms
-                end = min((i + 1) * chunk_duration_ms, duration_ms)
-                
-                print(f"Обработка чанка {i+1}/{chunks_count} ({(i+1)/chunks_count*100:.1f}%)")
-                print(f"Временной интервал: {start/1000:.2f}с - {end/1000:.2f}с")
-                
-                # Читаем часть аудио из источника
-                audio_chunk = recognizer.record(source, duration=(end - start) / 1000, offset=start / 1000)
-                
-                # Пытаемся распознать текст для текущего чанка
-                try:
-                    text = recognizer.recognize_google(audio_chunk, language="ru-RU")
-                    transcribed_chunks.append(text)
-                    print(f"Распознанный текст: {text}")
-                except sr.UnknownValueError:
-                    # Если не удалось распознать текст, добавляем пустую строку
-                    transcribed_chunks.append("")
-                    print("❌ Не удалось распознать речь в этом фрагменте")
-                except sr.RequestError as e:
-                    error_message = f"Ошибка при запросе к сервису Google Speech Recognition: {e}"
-                    print(f"⚠️ {error_message}")
-                    transcribed_chunks.append(f"Error during recognition: {str(e)}")
-                
-                print("-" * 50)
+            # Добавляем задержку между запросами
+            time.sleep(1)
 
-                # Добавляем задержку между запросами
-                time.sleep(1)
+        print(f"🏁 Распознавание завершено. Обработано {chunks_count} чанков.")
+        print(f"📊 Общее количество распознанных фрагментов: {len([chunk for chunk in transcribed_chunks if chunk])}")
 
-            print(f"Распознавание завершено. Обработано {chunks_count} чанков.")
-            print(f"Общее количество распознанных фрагментов: {len([chunk for chunk in transcribed_chunks if chunk])}")
+        # Объединяем все чанки и сохраняем результат
+        final_text = "\n\n".join(transcribed_chunks)
+        saved_path = save_transcription(final_text, file_path)
+        print(f"💾 Транскрипция сохранена в файл: {saved_path}")
         
         # Удаляем временный аудио файл, если он был создан
         if is_video and os.path.exists(temp_audio_path):
@@ -97,7 +120,7 @@ def transcribe_media(file_path: str) -> list[str]:
         return transcribed_chunks
     except Exception as e:
         # Обрабатываем общие исключения и возвращаем сообщение об ошибке
-        print(f"Ошибка в функции transcribe_media: {str(e)}")
+        print(f"🚫 Ошибка в функции transcribe_media: {str(e)}")
         return [f"Error during transcription: {str(e)}"]
 
 def merge_chunks(chunks: list[str], min_chunk_length: int = 100, max_chunk_length: int = 1000) -> list[str]:
@@ -152,3 +175,24 @@ def merge_chunks(chunks: list[str], min_chunk_length: int = 100, max_chunk_lengt
 
     # Возвращаем список объединенных чанков
     return merged_chunks
+
+def save_transcription(text: str, path: str) -> str:
+    """
+    Description:
+        Сохраняет транскрибированный текст в файл.
+    
+    Args:
+        text: Текст для сохранения
+        path: Путь к исходному медиафайлу
+    
+    Returns:
+        Путь к сохраненному файлу
+    """
+    # Создаем имя файла на основе исходного
+    base_name = os.path.splitext(path)[0]
+    output_path = f"{base_name}_transcription.txt"
+    
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(text)
+    
+    return output_path
