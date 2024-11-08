@@ -10,9 +10,6 @@
 # Ignore Jupyter notebook checkpoints
 .ipynb_checkpoints/
 
-# Ignore back directory (if it contains temporary or backup files)
-back/
-
 # Ignore any compiled Python files
 *.pyc
 
