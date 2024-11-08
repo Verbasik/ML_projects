@@ -1,3 +1,4 @@
+# back/tools/process_file.py
 # ============================
 # БЛОК ИМПОРТОВ
 # ============================
@@ -47,13 +48,13 @@ def process_file(file, agent, file_manager, session, process_func, chunk_prompt_
     file.save(file_path)
 
     # Проверяем, если функция требует только file_path
-    if process_func == process_ipynb_file:
+    if process_func.__name__ == 'process_ipynb_file':
         chunks = process_func(file_path)
     else:
         chunks = process_func(file_manager, session, file_path)
 
     if not chunks:
-        print("No chunks received from process_func")
+        print("❌ No chunks received from process_func")
         return "Error: No content to summarize"
     
     summary_filename = f"{file_base_name}_summary.md"
@@ -62,38 +63,53 @@ def process_file(file, agent, file_manager, session, process_func, chunk_prompt_
     # Проверяем, существует ли файл
     file_exists = Path(file_manager.working_directory / summary_filename).exists()
 
-    # Генерация суммаризации по каждому чанку
+    # Генерация суммаризации по чанкам
     total_chunks = len(chunks)
-    print(f"Начинаем обработку {total_chunks} чанков текста.")
-    print("-" * 50)
+    print(f"🚀 Начинаем обработку {total_chunks} чанков текста.")
+    print("📊 " + "-" * 50)
 
     for i, chunk in enumerate(chunks, 1):
-        print(f"Обработка чанка {i}/{total_chunks} ({i/total_chunks*100:.1f}%)")
+        progress = i/total_chunks*100
+        print(f"⏳ Обработка чанка {i}/{total_chunks} [{progress:.1f}%]")
         
-        prompt = file_manager.read_document(f'prompts/{chunk_prompt_type}_chank_prompt.txt') + "\n" + chunk
+        prompt = file_manager.read_document(
+            f'prompts/{chunk_prompt_type}_chank_prompt.txt'
+        ) + "\n" + chunk
         summarized_content = agent.process_message({"content": prompt})
         
-        print(f"Результат суммаризации чанка {i}:")
-        print(summarized_content)
-        print("-" * 50)
+        print(f"📝 Результат суммаризации чанка {i}:")
+        print(f"✨ Суммаризация выполнена успешно")
+        print("📊 " + "-" * 50)
         
         summary += summarized_content + "\n"
         
         if i == 0 and not file_exists:
-            # Для первой записи используем write_document, если файл не существует
-            file_manager.write_document(f"# Summarization for {file_base_name}\n\n## Chunk {i+1}\n{summarized_content}\n", summary_filename)
+            print(f"📁 Создание нового файла суммаризации")
+            file_manager.write_document(
+                f"# Summarization for {file_base_name}\n\n## Chunk {i+1}\n{summarized_content}\n",
+                summary_filename
+            )
         else:
-            # Для последующих записей используем append_document
-            file_manager.append_document(f"\n## Chunk {i+1}\n{summarized_content}\n", summary_filename)
+            print(f"📎 Добавление данных в существующий файл")
+            file_manager.append_document(
+                f"\n## Chunk {i+1}\n{summarized_content}\n",
+                summary_filename
+            )
 
     # Финальная суммаризация
+    print("🎯 Подготовка финальной суммаризации...")
     final_summary_prompt = f"Summarize the following text in a concise manner:\n\n{summary}"
     final_summary = agent.process_message({"content": final_summary_prompt})
     
     # Добавляем финальную суммаризацию к существующему файлу
-    file_manager.append_document("\n## Final Summary\n" + final_summary + "\n", summary_filename)
+    print("📌 Сохранение финальной суммаризации")
+    file_manager.append_document(
+        "\n## Final Summary\n" + final_summary + "\n",
+        summary_filename
+    )
     
     session['summary_filename'] = summary_filename
+    print("✅ Обработка файла успешно завершена!")
 
     return summary_filename
 

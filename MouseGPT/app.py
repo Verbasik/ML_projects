@@ -1,3 +1,4 @@
+# app.py
 # ============================
 # БЛОК ИМПОРТОВ
 # ============================
@@ -29,11 +30,7 @@ from langsmith import traceable
 load_dotenv()
 
 # Получение API ключей из переменной окружения
-HUGGINGFACEHUB_API_TOKEN = os.getenv('HUGGINGFACEHUB_API_TOKEN')
-LANGCHAIN_TRACING_V2     = os.getenv('LANGCHAIN_TRACING_V2')
-LANGCHAIN_API_KEY        = os.getenv('LANGCHAIN_API_KEY')
-TAVILY_API_KEY           = os.getenv('TAVILY_API_KEY')
-OPENAI_API_KEY           = os.environ['OPENAI_API_KEY']
+OPENAI_API_KEY = os.environ['OPENAI_API_KEY']
 
 # Централизованная конфигурация типов файлов
 FILE_TYPES = {
@@ -50,7 +47,7 @@ logging.getLogger('engineio').setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Инициализация клиента OpenAI
-openai.api_key = OPENAI_API_KEY
+client = openai.api_key = OPENAI_API_KEY
 
 # Инициализация файл-менеджера
 file_manager = FileManager()

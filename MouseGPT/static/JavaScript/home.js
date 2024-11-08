@@ -1,3 +1,4 @@
+// static/JavaScript/home.js
 const socket = io.connect({
     transports: ['websocket', 'polling']
 });
